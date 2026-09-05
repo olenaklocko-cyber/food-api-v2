@@ -26,9 +26,9 @@ module.exports = async (req, res) => {
             return res.status(500).json({ error: 'HF_TOKEN not configured' });
         }
         
-        // Використовуємо прямий URL
+        // Використовуємо HF Router
         const response = await fetch(
-            'https://api-inference.huggingface.co/models/nateraw/food',
+            'https://router.huggingface.co/hf-inference/models/nateraw/food',
             {
                 method: 'POST',
                 headers: {
