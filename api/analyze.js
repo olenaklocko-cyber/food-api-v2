@@ -34,9 +34,9 @@ module.exports = async (req, res) => {
         
         const imageBuffer = Buffer.from(imageBase64, 'base64');
         
-        // Використовуємо nateraw/food модель з HF Inference API
+        // Використовуємо nateraw/food модель з нового HF Inference API
         const response = await fetch(
-            'https://api-inference.huggingface.co/models/nateraw/food',
+            'https://router.huggingface.co/hf-inference/models/nateraw/food',
             {
                 method: 'POST',
                 headers: {
