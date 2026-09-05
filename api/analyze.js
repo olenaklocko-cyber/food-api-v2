@@ -26,16 +26,24 @@ module.exports = async (req, res) => {
             return res.status(500).json({ error: 'HF_TOKEN not configured' });
         }
         
-        // Використовуємо HF Router
+        // Обробляємо зображення - видаляємо префікс data:image/...;base64,
+        let imageBase64 = image;
+        if (image.includes('base64,')) {
+            imageBase64 = image.split('base64,')[1];
+        }
+        
+        // Конвертуємо base64 в Buffer
+        const imageBuffer = Buffer.from(imageBase64, 'base64');
+        
         const response = await fetch(
             'https://router.huggingface.co/hf-inference/models/nateraw/food',
             {
                 method: 'POST',
                 headers: {
                     'Authorization': 'Bearer ' + hfToken,
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/octet-stream'
                 },
-                body: JSON.stringify({ inputs: image }),
+                body: imageBuffer,
                 timeout: 30000
             }
         );
@@ -102,7 +110,7 @@ module.exports = async (req, res) => {
             'hummus': { name: 'Хумус', cal: 140 },
             'ice_cream': { name: 'Морозиво', cal: 200 },
             'lasagna': { name: 'Лазанья', cal: 280 },
-            'lobster_bisque': { name: 'Бісквіт з лангустів', cal: 180 },
+            'lobster_bisque': { name: 'Бісквіт', cal: 180 },
             'lobster_roll_sandwich': { name: 'Рол з лангустом', cal: 320 },
             'macaroni_and_cheese': { name: 'Макарони з сиром', cal: 280 },
             'macarons': { name: 'Макарони', cal: 350 },
@@ -122,18 +130,18 @@ module.exports = async (req, res) => {
             'pork_chop': { name: 'Свиняча відбивна', cal: 260 },
             'poutine': { name: 'Путін', cal: 350 },
             'prime_rib': { name: 'Прайм-ріб', cal: 320 },
-            'pulled_pork_sandwich': { name: 'Сендвіч з тягнутою свининою', cal: 350 },
+            'pulled_pork_sandwich': { name: 'Сендвіч', cal: 350 },
             'ramen': { name: 'Рамен', cal: 190 },
             'ravioli': { name: 'Равіолі', cal: 200 },
-            'red_velvet_cake': { name: 'Торт червоний оксамит', cal: 370 },
+            'red_velvet_cake': { name: 'Торт червоний', cal: 370 },
             'risotto': { name: 'Різотто', cal: 200 },
             'samosa': { name: 'Самоса', cal: 260 },
             'sashimi': { name: 'Сашимі', cal: 120 },
-            'scallops': { name: 'Морські гребінці', cal: 150 },
+            'scallops': { name: 'Гребінці', cal: 150 },
             'seaweed_salad': { name: 'Салат з водоростей', cal: 70 },
-            'shrimp_and_grits': { name: 'Креветки з кашею', cal: 250 },
-            'spaghetti_bolognese': { name: 'Спагетті Болоньєзе', cal: 220 },
-            'spaghetti_carbonara': { name: 'Спагетті Карбонара', cal: 280 },
+            'shrimp_and_grits': { name: 'Креветки', cal: 250 },
+            'spaghetti_bolognese': { name: 'Спагетті', cal: 220 },
+            'spaghetti_carbonara': { name: 'Карбонара', cal: 280 },
             'spring_rolls': { name: 'Літні роли', cal: 180 },
             'steak': { name: 'Стейк', cal: 270 },
             'strawberry_shortcake': { name: 'Полуничний торт', cal: 300 },
