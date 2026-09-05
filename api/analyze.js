@@ -49,6 +49,7 @@ module.exports = async (req, res) => {
         );
         
         const data = await response.json();
+        console.log('HF Response:', JSON.stringify(data).substring(0, 500));
         
         // База калорій для українських страв
         const calorieDB = {
@@ -214,7 +215,8 @@ module.exports = async (req, res) => {
         
         return res.status(200).json({
             success: false,
-            error: 'Не вдалося розпізнати'
+            error: 'Не вдалося розпізнати',
+            debug: data
         });
         
     } catch (error) {
