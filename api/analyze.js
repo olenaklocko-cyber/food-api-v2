@@ -26,15 +26,17 @@ module.exports = async (req, res) => {
             return res.status(500).json({ error: 'HF_TOKEN not configured' });
         }
         
+        // Використовуємо прямий URL
         const response = await fetch(
             'https://api-inference.huggingface.co/models/nateraw/food',
             {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${hfToken}`,
+                    'Authorization': 'Bearer ' + hfToken,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ inputs: image })
+                body: JSON.stringify({ inputs: image }),
+                timeout: 30000
             }
         );
         
