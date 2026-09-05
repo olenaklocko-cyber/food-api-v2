@@ -1,3 +1,4 @@
+// CaloAI Food Recognition API
 const fetch = require('node-fetch');
 
 module.exports = async (req, res) => {
