@@ -27,6 +27,12 @@ module.exports = async (req, res) => {
             return res.status(500).json({ error: 'RAPIDAPI_KEY not configured' });
         }
         
+        // Переконуємось що зображення в форматі data URI
+        let imageUri = image;
+        if (!image.startsWith('data:')) {
+            imageUri = 'data:image/jpeg;base64,' + image;
+        }
+        
         // Використовуємо CaloAI API через RapidAPI
         const response = await fetch(
             'https://caloai.p.rapidapi.com/v1',
@@ -37,7 +43,7 @@ module.exports = async (req, res) => {
                     'X-RapidAPI-Host': 'caloai.p.rapidapi.com',
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ image_url: image }),
+                body: JSON.stringify({ image_url: imageUri }),
                 timeout: 30000
             }
         );
@@ -48,26 +54,16 @@ module.exports = async (req, res) => {
         if (data.status === 'success' && data.response) {
             const resp = data.response;
             
-            // CaloAI повертає дані в форматі:
-            // { proteins, fats, carbs, calories, healthy_points, detected_dishes, ... }
-            
             const dishes = [];
             
-            if (resp.detected_dishes && resp.detected_dishes.length > 0) {
-                // Якщо є список страв
-                resp.detected_dishes.forEach(function(dish) {
-                    dishes.push({
-                        name: dish,
-                        calories: Math.round(resp.calories / resp.detected_dishes.length),
-                        confidence: resp.confidence_score || 85
-                    });
-                });
-            } else {
-                // Якщо тільки загальна інформація
+            if (resp.product_name) {
                 dishes.push({
-                    name: 'Їжа на фото',
+                    name: resp.product_name,
                     calories: resp.calories || 300,
-                    confidence: resp.confidence_score || 70
+                    confidence: 90,
+                    protein: resp.proteins || 0,
+                    fat: resp.fats || 0,
+                    carbs: resp.carbs || 0
                 });
             }
             
@@ -78,22 +74,13 @@ module.exports = async (req, res) => {
                 protein: resp.proteins || 0,
                 fat: resp.fats || 0,
                 carbs: resp.carbs || 0,
-                healthyScore: resp.healthy_points || 5,
-                verdict: resp.ai_verdict || ''
-            });
-        }
-        
-        // Якщо CaloAI повернув помилку
-        if (data.error) {
-            return res.status(200).json({
-                success: false,
-                error: data.error
+                healthyScore: resp.healthy_points || 5
             });
         }
         
         return res.status(200).json({
             success: false,
-            error: 'Не вдалося розпізнати'
+            error: data.error || 'Не вдалося розпізнати'
         });
         
     } catch (error) {
