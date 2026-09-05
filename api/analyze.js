@@ -34,9 +34,9 @@ module.exports = async (req, res) => {
         
         const imageBuffer = Buffer.from(imageBase64, 'base64');
         
-        // Використовуємо кращу модель для розпізнавання їжі
+        // Використовуємо nateraw/food модель з HF Inference API
         const response = await fetch(
-            'https://router.huggingface.co/hf-inference/models/CreatorJarvis/FoodExtract-Vision-SmolVLM2-500M-fine-tune',
+            'https://api-inference.huggingface.co/models/nateraw/food',
             {
                 method: 'POST',
                 headers: {
@@ -53,6 +53,7 @@ module.exports = async (req, res) => {
         // База калорій для українських страв
         const calorieDB = {
             'sausage': { name: 'Сосиска', cal: 150 },
+            'hot_dog': { name: 'Хот-дог', cal: 290 },
             'hot dog': { name: 'Хот-дог', cal: 290 },
             'bacon': { name: 'Бекон', cal: 540 },
             'ham': { name: 'Шинка', cal: 145 },
@@ -113,7 +114,7 @@ module.exports = async (req, res) => {
             'cookies': { name: 'Печиво', cal: 488 },
             'cookie': { name: 'Печиво', cal: 488 },
             'chicken': { name: 'Курка', cal: 239 },
-            'chicken breast': { name: 'Куряча грудка', cal: 165 },
+            'chicken_breast': { name: 'Куряча грудка', cal: 165 },
             'beef': { name: 'Яловичина', cal: 250 },
             'steak': { name: 'Стейк', cal: 271 },
             'pork': { name: 'Свинина', cal: 242 },
@@ -134,11 +135,11 @@ module.exports = async (req, res) => {
             'noodles': { name: 'Локшина', cal: 138 },
             'sushi': { name: 'Суші', cal: 143 },
             'rice': { name: 'Рис', cal: 130 },
-            'fried rice': { name: 'Смажений рис', cal: 163 },
+            'fried_rice': { name: 'Смажений рис', cal: 163 },
             'curry': { name: 'Каррі', cal: 125 },
             'soup': { name: 'Суп', cal: 50 },
             'sandwich': { name: 'Сендвіч', cal: 252 },
-            'french fries': { name: 'Картопля фрі', cal: 312 },
+            'french_fries': { name: 'Картопля фрі', cal: 312 },
             'fries': { name: 'Картопля фрі', cal: 312 },
             'chips': { name: 'Чіпси', cal: 536 },
             'chocolate': { name: 'Шоколад', cal: 546 },
@@ -192,54 +193,23 @@ module.exports = async (req, res) => {
             'walnuts': { name: 'Волоські горіхи', cal: 654 }
         };
         
-        // Обробка результату
-        if (data && typeof data === 'object') {
-            // Якщо це VLM відповідь з JSON
-            if (data.food_items || data.food_items === []) {
-                const items = data.food_items || [];
-                const drinks = data.drink_items || [];
-                const allItems = [...items, ...drinks];
-                
-                if (allItems.length > 0) {
-                    const dishes = allItems.map(item => {
-                        const itemLower = item.toLowerCase();
-                        const foodInfo = calorieDB[itemLower] || { name: item, cal: 150 };
-                        return {
-                            name: foodInfo.name,
-                            calories: foodInfo.cal,
-                            confidence: 85
-                        };
-                    });
-                    
-                    const totalCal = dishes.reduce((sum, d) => sum + d.calories, 0);
-                    
-                    return res.status(200).json({
-                        success: true,
-                        dishes: dishes,
-                        totalCalories: totalCal,
-                        title: data.image_title || 'Їжа'
-                    });
-                }
-            }
+        // Обробка результату від nateraw/food
+        if (data && Array.isArray(data) && data.length > 0) {
+            const topResults = data.slice(0, 3).map(item => {
+                const itemLabel = item.label ? item.label.toLowerCase().replace(/ /g, '_') : '';
+                const foodInfo = calorieDB[itemLabel] || { name: item.label || 'Їжа', cal: 200 };
+                return {
+                    name: foodInfo.name,
+                    confidence: Math.round((item.score || 0.5) * 100),
+                    calories: foodInfo.cal
+                };
+            });
             
-            // Якщо це класифікація з confidence
-            if (Array.isArray(data) && data.length > 0) {
-                const topResults = data.slice(0, 3).map(item => {
-                    const itemLabel = item.label ? item.label.toLowerCase() : '';
-                    const foodInfo = calorieDB[itemLabel] || { name: item.label || 'Їжа', cal: 200 };
-                    return {
-                        name: foodInfo.name,
-                        confidence: Math.round((item.score || 0.5) * 100),
-                        calories: foodInfo.cal
-                    };
-                });
-                
-                return res.status(200).json({
-                    success: true,
-                    dishes: topResults,
-                    totalCalories: topResults[0].calories
-                });
-            }
+            return res.status(200).json({
+                success: true,
+                dishes: topResults,
+                totalCalories: topResults[0].calories
+            });
         }
         
         return res.status(200).json({
