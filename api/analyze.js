@@ -1,6 +1,28 @@
 // CaloAI Food Recognition API
 const fetch = require('node-fetch');
 
+// Функція перекладу з англійської на українську через MyMemory API
+async function translateToUkrainian(text) {
+    if (!text) return 'Їжа';
+    
+    try {
+        const response = await fetch(
+            `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|uk`,
+            { timeout: 5000 }
+        );
+        const data = await response.json();
+        
+        if (data.responseStatus === 200 && data.responseData && data.responseData.translatedText) {
+            return data.responseData.translatedText;
+        }
+    } catch (error) {
+        console.error('Translation error:', error.message);
+    }
+    
+    // Повертаємо оригінал якщо переклад не вдався
+    return text;
+}
+
 module.exports = async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -57,8 +79,11 @@ module.exports = async (req, res) => {
             const dishes = [];
             
             if (resp.product_name) {
+                // Перекладаємо назву на українську
+                const translatedName = await translateToUkrainian(resp.product_name);
+                
                 dishes.push({
-                    name: resp.product_name,
+                    name: translatedName,
                     calories: resp.calories || 300,
                     confidence: 90,
                     protein: resp.proteins || 0,
