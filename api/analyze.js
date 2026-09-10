@@ -29,6 +29,39 @@ async function uploadToCatbox(base64Data) {
     }
 }
 
+// Функція завантаження base64 на tmpfiles.org
+async function uploadToTmpfiles(base64Data) {
+    const buffer = Buffer.from(base64Data, 'base64');
+    const tmpPath = '/tmp/upload_' + Date.now() + '.jpg';
+    fs.writeFileSync(tmpPath, buffer);
+    
+    try {
+        const form = new FormData();
+        form.append('file', fs.createReadStream(tmpPath), {
+            filename: 'image.jpg',
+            contentType: 'image/jpeg'
+        });
+        
+        const response = await fetch('https://tmpfiles.org/api/v1/upload', {
+            method: 'POST',
+            body: form
+        });
+        
+        const data = await response.json();
+        console.log('tmpfiles response:', data);
+        
+        if (data.status === 'success' && data.data && data.data.url) {
+            // tmpfiles returns URL like https://tmpfiles.org/123/image.jpg
+            // Convert to direct URL: https://tmpfiles.org/direct/123/image.jpg
+            return data.data.url.replace('tmpfiles.org/', 'tmpfiles.org/direct/');
+        }
+        
+        throw new Error('Upload failed: ' + JSON.stringify(data));
+    } finally {
+        try { fs.unlinkSync(tmpPath); } catch(e) {}
+    }
+}
+
 // Функція перекладу з англійської на українську через MyMemory API
 async function translateToUkrainian(text) {
     if (!text) return 'Їжа';
@@ -85,14 +118,24 @@ module.exports = async (req, res) => {
             base64Data = image.split(',')[1];
         }
         
-        // Крок 1: Завантажуємо на catbox.moe
+        // Крок 1: Завантажуємо на хостинг для отримання URL
         let imageUrl;
+        
+        // Спроба 1: tmpfiles.org
         try {
-            imageUrl = await uploadToCatbox(base64Data);
-            console.log('Uploaded to catbox:', imageUrl);
-        } catch (uploadError) {
-            console.error('Upload error:', uploadError.message);
-            return res.status(500).json({ error: 'Failed to upload image' });
+            imageUrl = await uploadToTmpfiles(base64Data);
+            console.log('Uploaded to tmpfiles:', imageUrl);
+        } catch (tmpfilesError) {
+            console.error('tmpfiles upload error:', tmpfilesError.message);
+            
+            // Спроба 2: catbox.moe
+            try {
+                imageUrl = await uploadToCatbox(base64Data);
+                console.log('Uploaded to catbox:', imageUrl);
+            } catch (catboxError) {
+                console.error('catbox upload error:', catboxError.message);
+                return res.status(500).json({ error: 'Failed to upload image to hosting' });
+            }
         }
         
         // Крок 2: Відправляємо URL в CaloAI
