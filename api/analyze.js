@@ -6,10 +6,13 @@ async function translateToUkrainian(text) {
     if (!text) return 'Їжа';
     
     try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
         const response = await fetch(
             `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|uk`,
-            { timeout: 5000 }
+            { signal: controller.signal }
         );
+        clearTimeout(timeout);
         const data = await response.json();
         
         if (data.responseStatus === 200 && data.responseData && data.responseData.translatedText) {
@@ -43,7 +46,7 @@ module.exports = async (req, res) => {
             return res.status(400).json({ error: 'No image provided' });
         }
         
-        const rapidApiKey = process.env.RAPIDAPI_KEY;
+        const rapidApiKey = process.env.RAPIDAPI_KEY || process.env.CALOAI_API_KEY || process.env.API_KEY;
         
         if (!rapidApiKey) {
             return res.status(500).json({ error: 'RAPIDAPI_KEY not configured' });
@@ -56,6 +59,9 @@ module.exports = async (req, res) => {
         }
         
         // Використовуємо CaloAI API через RapidAPI
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 30000);
+        
         const response = await fetch(
             'https://caloai.p.rapidapi.com/v1',
             {
@@ -66,10 +72,11 @@ module.exports = async (req, res) => {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({ image_url: imageUri }),
-                timeout: 30000
+                signal: controller.signal
             }
         );
         
+        clearTimeout(timeout);
         const data = await response.json();
         
         // Обробка результату від CaloAI
@@ -85,7 +92,7 @@ module.exports = async (req, res) => {
                 dishes.push({
                     name: translatedName,
                     calories: resp.calories || 300,
-                    confidence: 90,
+                    confidence: resp.confidence_score || 90,
                     protein: resp.proteins || 0,
                     fat: resp.fats || 0,
                     carbs: resp.carbs || 0
@@ -109,6 +116,7 @@ module.exports = async (req, res) => {
         });
         
     } catch (error) {
+        console.error('Analyze error:', error.message);
         return res.status(500).json({ error: error.message });
     }
 };
