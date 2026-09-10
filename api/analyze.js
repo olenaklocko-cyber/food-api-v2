@@ -4,6 +4,31 @@ const FormData = require('form-data');
 const fs = require('fs');
 const path = require('path');
 
+// Функція завантаження base64 на uguu.se
+async function uploadToUguu(base64Data) {
+    const buffer = Buffer.from(base64Data, 'base64');
+    const tmpPath = '/tmp/upload_' + Date.now() + '.jpg';
+    fs.writeFileSync(tmpPath, buffer);
+    
+    try {
+        const form = new FormData();
+        form.append('files[]', fs.createReadStream(tmpPath), 'image.jpg');
+        
+        const response = await fetch('https://uguu.se/upload', {
+            method: 'POST',
+            body: form
+        });
+        
+        const data = await response.json();
+        if (data.success && data.files && data.files[0]) {
+            return data.files[0].url;
+        }
+        throw new Error('Upload failed');
+    } finally {
+        try { fs.unlinkSync(tmpPath); } catch(e) {}
+    }
+}
+
 // Функція завантаження base64 на 0x0.st
 async function uploadTo0x0(base64Data) {
     const buffer = Buffer.from(base64Data, 'base64');
@@ -146,12 +171,12 @@ module.exports = async (req, res) => {
                 base64Data = image.split(',')[1];
             }
             
-            // Крок 1: Завантажуємо на 0x0.st
+            // Крок 1: Завантажуємо на uguu.se
             try {
-                imageUrl = await uploadTo0x0(base64Data);
-                console.log('Uploaded to 0x0.st:', imageUrl);
-            } catch (e0x0) {
-                console.error('0x0.st upload error:', e0x0.message);
+                imageUrl = await uploadToUguu(base64Data);
+                console.log('Uploaded to uguu.se:', imageUrl);
+            } catch (eUguu) {
+                console.error('uguu.se upload error:', eUguu.message);
                 
                 // Спроба 2: catbox.moe
                 try {
