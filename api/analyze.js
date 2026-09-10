@@ -52,10 +52,11 @@ module.exports = async (req, res) => {
             return res.status(500).json({ error: 'RAPIDAPI_KEY not configured' });
         }
         
-        // Переконуємось що зображення в форматі data URI
-        let imageUri = image;
-        if (!image.startsWith('data:')) {
-            imageUri = 'data:image/jpeg;base64,' + image;
+        // Відправляємо base64 без data URI префікса
+        let imageData = image;
+        if (image.startsWith('data:')) {
+            // Видаляємо "data:image/jpeg;base64," префікс
+            imageData = image.split(',')[1];
         }
         
         // Використовуємо CaloAI API через RapidAPI
@@ -71,7 +72,7 @@ module.exports = async (req, res) => {
                     'X-RapidAPI-Host': 'caloai.p.rapidapi.com',
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ image_url: imageUri }),
+                body: JSON.stringify({ image_url: imageData }),
                 signal: controller.signal
             }
         );
