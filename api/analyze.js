@@ -4,6 +4,28 @@ const FormData = require('form-data');
 const fs = require('fs');
 const path = require('path');
 
+// Функція завантаження base64 на 0x0.st
+async function uploadTo0x0(base64Data) {
+    const buffer = Buffer.from(base64Data, 'base64');
+    const tmpPath = '/tmp/upload_' + Date.now() + '.jpg';
+    fs.writeFileSync(tmpPath, buffer);
+    
+    try {
+        const form = new FormData();
+        form.append('file', fs.createReadStream(tmpPath));
+        
+        const response = await fetch('https://0x0.st', {
+            method: 'POST',
+            body: form
+        });
+        
+        const url = await response.text();
+        return url.trim();
+    } finally {
+        try { fs.unlinkSync(tmpPath); } catch(e) {}
+    }
+}
+
 // Функція завантаження base64 на catbox.moe
 async function uploadToCatbox(base64Data) {
     // Конвертуємо base64 в Buffer
@@ -118,25 +140,25 @@ module.exports = async (req, res) => {
             imageUrl = image;
             console.log('Using direct URL:', imageUrl);
         } else {
-            // Base64 - завантажуємо на хостинг
+            // Base64 - завантажуємо на хостинг для отримання URL
             let base64Data = image;
             if (image.startsWith('data:')) {
                 base64Data = image.split(',')[1];
             }
             
-            // Крок 1: Завантажуємо на catbox.moe
+            // Крок 1: Завантажуємо на 0x0.st
             try {
-                imageUrl = await uploadToCatbox(base64Data);
-                console.log('Uploaded to catbox:', imageUrl);
-            } catch (catboxError) {
-                console.error('catbox upload error:', catboxError.message);
+                imageUrl = await uploadTo0x0(base64Data);
+                console.log('Uploaded to 0x0.st:', imageUrl);
+            } catch (e0x0) {
+                console.error('0x0.st upload error:', e0x0.message);
                 
-                // Спроба 2: tmpfiles.org
+                // Спроба 2: catbox.moe
                 try {
-                    imageUrl = await uploadToTmpfiles(base64Data);
-                    console.log('Uploaded to tmpfiles:', imageUrl);
-                } catch (tmpfilesError) {
-                    console.error('tmpfiles upload error:', tmpfilesError.message);
+                    imageUrl = await uploadToCatbox(base64Data);
+                    console.log('Uploaded to catbox:', imageUrl);
+                } catch (catboxError) {
+                    console.error('catbox upload error:', catboxError.message);
                     return res.status(500).json({ error: 'Failed to upload image to hosting' });
                 }
             }
