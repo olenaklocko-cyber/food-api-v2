@@ -112,29 +112,33 @@ module.exports = async (req, res) => {
             return res.status(500).json({ error: 'RAPIDAPI_KEY not configured' });
         }
         
-        // Витягуємо base64 з data URI
-        let base64Data = image;
-        if (image.startsWith('data:')) {
-            base64Data = image.split(',')[1];
-        }
-        
-        // Крок 1: Завантажуємо на хостинг для отримання URL
+        // Якщо image вже URL - відправляємо напряму
         let imageUrl;
-        
-        // Спроба 1: tmpfiles.org
-        try {
-            imageUrl = await uploadToTmpfiles(base64Data);
-            console.log('Uploaded to tmpfiles:', imageUrl);
-        } catch (tmpfilesError) {
-            console.error('tmpfiles upload error:', tmpfilesError.message);
+        if (image.startsWith('http://') || image.startsWith('https://')) {
+            imageUrl = image;
+            console.log('Using direct URL:', imageUrl);
+        } else {
+            // Base64 - завантажуємо на хостинг
+            let base64Data = image;
+            if (image.startsWith('data:')) {
+                base64Data = image.split(',')[1];
+            }
             
-            // Спроба 2: catbox.moe
+            // Крок 1: Завантажуємо на хостинг для отримання URL
             try {
-                imageUrl = await uploadToCatbox(base64Data);
-                console.log('Uploaded to catbox:', imageUrl);
-            } catch (catboxError) {
-                console.error('catbox upload error:', catboxError.message);
-                return res.status(500).json({ error: 'Failed to upload image to hosting' });
+                imageUrl = await uploadToTmpfiles(base64Data);
+                console.log('Uploaded to tmpfiles:', imageUrl);
+            } catch (tmpfilesError) {
+                console.error('tmpfiles upload error:', tmpfilesError.message);
+                
+                // Спроба 2: catbox.moe
+                try {
+                    imageUrl = await uploadToCatbox(base64Data);
+                    console.log('Uploaded to catbox:', imageUrl);
+                } catch (catboxError) {
+                    console.error('catbox upload error:', catboxError.message);
+                    return res.status(500).json({ error: 'Failed to upload image to hosting' });
+                }
             }
         }
         
