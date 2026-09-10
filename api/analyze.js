@@ -124,19 +124,19 @@ module.exports = async (req, res) => {
                 base64Data = image.split(',')[1];
             }
             
-            // Крок 1: Завантажуємо на хостинг для отримання URL
+            // Крок 1: Завантажуємо на catbox.moe
             try {
-                imageUrl = await uploadToTmpfiles(base64Data);
-                console.log('Uploaded to tmpfiles:', imageUrl);
-            } catch (tmpfilesError) {
-                console.error('tmpfiles upload error:', tmpfilesError.message);
+                imageUrl = await uploadToCatbox(base64Data);
+                console.log('Uploaded to catbox:', imageUrl);
+            } catch (catboxError) {
+                console.error('catbox upload error:', catboxError.message);
                 
-                // Спроба 2: catbox.moe
+                // Спроба 2: tmpfiles.org
                 try {
-                    imageUrl = await uploadToCatbox(base64Data);
-                    console.log('Uploaded to catbox:', imageUrl);
-                } catch (catboxError) {
-                    console.error('catbox upload error:', catboxError.message);
+                    imageUrl = await uploadToTmpfiles(base64Data);
+                    console.log('Uploaded to tmpfiles:', imageUrl);
+                } catch (tmpfilesError) {
+                    console.error('tmpfiles upload error:', tmpfilesError.message);
                     return res.status(500).json({ error: 'Failed to upload image to hosting' });
                 }
             }
