@@ -2,6 +2,7 @@
   "name": "food-api",
   "version": "1.0.0",
   "dependencies": {
+    "form-data": "^4.0.6",
     "node-fetch": "^2.6.1"
   }
 }
