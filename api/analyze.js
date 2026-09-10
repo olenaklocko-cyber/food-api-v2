@@ -1,5 +1,33 @@
 // CaloAI Food Recognition API
 const fetch = require('node-fetch');
+const FormData = require('form-data');
+const fs = require('fs');
+const path = require('path');
+
+// Функція завантаження base64 на catbox.moe
+async function uploadToCatbox(base64Data) {
+    // Конвертуємо base64 в Buffer
+    const buffer = Buffer.from(base64Data, 'base64');
+    const tmpPath = '/tmp/upload_' + Date.now() + '.jpg';
+    fs.writeFileSync(tmpPath, buffer);
+    
+    try {
+        const form = new FormData();
+        form.append('reqtype', 'fileupload');
+        form.append('fileToUpload', fs.createReadStream(tmpPath), 'image.jpg');
+        
+        const response = await fetch('https://catbox.moe/user/api.php', {
+            method: 'POST',
+            body: form
+        });
+        
+        const url = await response.text();
+        return url.trim();
+    } finally {
+        // Видаляємо тимчасовий файл
+        try { fs.unlinkSync(tmpPath); } catch(e) {}
+    }
+}
 
 // Функція перекладу з англійської на українську через MyMemory API
 async function translateToUkrainian(text) {
@@ -22,7 +50,6 @@ async function translateToUkrainian(text) {
         console.error('Translation error:', error.message);
     }
     
-    // Повертаємо оригінал якщо переклад не вдався
     return text;
 }
 
@@ -52,14 +79,23 @@ module.exports = async (req, res) => {
             return res.status(500).json({ error: 'RAPIDAPI_KEY not configured' });
         }
         
-        // Відправляємо base64 без data URI префікса
-        let imageData = image;
+        // Витягуємо base64 з data URI
+        let base64Data = image;
         if (image.startsWith('data:')) {
-            // Видаляємо "data:image/jpeg;base64," префікс
-            imageData = image.split(',')[1];
+            base64Data = image.split(',')[1];
         }
         
-        // Використовуємо CaloAI API через RapidAPI
+        // Крок 1: Завантажуємо на catbox.moe
+        let imageUrl;
+        try {
+            imageUrl = await uploadToCatbox(base64Data);
+            console.log('Uploaded to catbox:', imageUrl);
+        } catch (uploadError) {
+            console.error('Upload error:', uploadError.message);
+            return res.status(500).json({ error: 'Failed to upload image' });
+        }
+        
+        // Крок 2: Відправляємо URL в CaloAI
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 30000);
         
@@ -72,7 +108,7 @@ module.exports = async (req, res) => {
                     'X-RapidAPI-Host': 'caloai.p.rapidapi.com',
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ image_url: imageData }),
+                body: JSON.stringify({ image_url: imageUrl }),
                 signal: controller.signal
             }
         );
@@ -80,14 +116,12 @@ module.exports = async (req, res) => {
         clearTimeout(timeout);
         const data = await response.json();
         
-        // Обробка результату від CaloAI
         if (data.status === 'success' && data.response) {
             const resp = data.response;
             
             const dishes = [];
             
             if (resp.product_name) {
-                // Перекладаємо назву на українську
                 const translatedName = await translateToUkrainian(resp.product_name);
                 
                 dishes.push({
@@ -98,6 +132,21 @@ module.exports = async (req, res) => {
                     fat: resp.fats || 0,
                     carbs: resp.carbs || 0
                 });
+            }
+            
+            // Додаємо розпізнані страви окремо
+            if (resp.detected_dishes && resp.detected_dishes.length > 0) {
+                for (const dish of resp.detected_dishes) {
+                    const translatedDishName = await translateToUkrainian(dish.name);
+                    dishes.push({
+                        name: translatedDishName,
+                        calories: dish.calories || 0,
+                        confidence: 80,
+                        protein: dish.proteins || 0,
+                        fat: dish.fats || 0,
+                        carbs: dish.carbs || 0
+                    });
+                }
             }
             
             return res.status(200).json({
