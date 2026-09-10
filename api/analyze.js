@@ -106,7 +106,7 @@ module.exports = async (req, res) => {
             return res.status(400).json({ error: 'No image provided' });
         }
         
-        const rapidApiKey = process.env.RAPIDAPI_KEY || process.env.CALOAI_API_KEY || process.env.API_KEY;
+        const rapidApiKey = process.env.RAPIDAPI_KEY || process.env.CALOAI_API_KEY || process.env.API_KEY || '16749e13b0msh437c9c685ba695bp10d553jsn871fbf3b2535';
         
         if (!rapidApiKey) {
             return res.status(500).json({ error: 'RAPIDAPI_KEY not configured' });
