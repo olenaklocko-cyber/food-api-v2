@@ -159,6 +159,20 @@ module.exports = async (req, res) => {
         clearTimeout(timeout);
         const data = await response.json();
         
+        // Debug: якщо помилка - повертаємо деталі
+        if (data.status !== 'success') {
+            return res.status(200).json({
+                success: false,
+                error: data.error || 'Не вдалося розпізнати',
+                debug: {
+                    httpStatus: response.status,
+                    caloResponse: data,
+                    imageUrl: imageUrl ? imageUrl.substring(0, 100) : null,
+                    keyPrefix: rapidApiKey.substring(0, 8) + '...'
+                }
+            });
+        }
+        
         if (data.status === 'success' && data.response) {
             const resp = data.response;
             
