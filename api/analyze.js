@@ -228,9 +228,15 @@ module.exports = async (req, res) => {
                 });
             }
             
-            // Додаємо розпізнані страви окремо
+            // Додаємо окремі інгредієнти тільки якщо їхня назва відрізняється від product_name
             if (resp.detected_dishes && resp.detected_dishes.length > 0) {
+                const mainName = (resp.product_name || '').toLowerCase().trim();
                 for (const dish of resp.detected_dishes) {
+                    const dishNameLower = (dish.name || '').toLowerCase().trim();
+                    // Пропускаємо якщо назва збігається з основною стравою
+                    if (dishNameLower === mainName || mainName.includes(dishNameLower) || dishNameLower.includes(mainName)) {
+                        continue;
+                    }
                     const translatedDishName = await translateToUkrainian(dish.name);
                     dishes.push({
                         name: translatedDishName,
