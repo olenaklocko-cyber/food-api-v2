@@ -23,46 +23,26 @@ async function translateToUkrainian(text) {
     return text;
 }
 
-async function uploadToTelegraph(base64Data) {
+async function uploadImage(base64Data) {
     const buffer = Buffer.from(base64Data, 'base64');
     const tmpPath = '/tmp/upload_' + Date.now() + '.jpg';
     fs.writeFileSync(tmpPath, buffer);
     try {
         const form = new FormData();
-        form.append('file', fs.createReadStream(tmpPath), { filename: 'image.jpg', contentType: 'image/jpeg' });
-        const response = await fetch('https://telegra.ph/upload', {
+        form.append('key', '6d207e02198a847aa98d0a2a901485a5');
+        form.append('source', fs.createReadStream(tmpPath));
+        form.append('format', 'json');
+        const response = await fetch('https://freeimage.host/api/1/upload', {
             method: 'POST',
             body: form,
             headers: form.getHeaders()
         });
         const data = await response.json();
-        console.log('telegraph:', JSON.stringify(data));
-        if (data && data[0] && data[0].src) {
-            return 'https://telegra.ph' + data[0].src;
+        console.log('freeimage status:', data.status_code);
+        if (data.status_code === 200 && data.image && data.image.url) {
+            return data.image.url;
         }
-        throw new Error('telegraph failed');
-    } finally {
-        try { fs.unlinkSync(tmpPath); } catch(e) {}
-    }
-}
-
-async function uploadToCatbox(base64Data) {
-    const buffer = Buffer.from(base64Data, 'base64');
-    const tmpPath = '/tmp/upload_' + Date.now() + '.jpg';
-    fs.writeFileSync(tmpPath, buffer);
-    try {
-        const form = new FormData();
-        form.append('reqtype', 'fileupload');
-        form.append('fileToUpload', fs.createReadStream(tmpPath), { filename: 'image.jpg', contentType: 'image/jpeg' });
-        const response = await fetch('https://catbox.moe/user/api.php', {
-            method: 'POST',
-            body: form,
-            headers: form.getHeaders()
-        });
-        const url = await response.text();
-        console.log('catbox:', url);
-        if (url && url.startsWith('https://')) return url.trim();
-        throw new Error('catbox failed: ' + url);
+        throw new Error('freeimage failed: ' + JSON.stringify(data).substring(0, 200));
     } finally {
         try { fs.unlinkSync(tmpPath); } catch(e) {}
     }
@@ -92,17 +72,11 @@ module.exports = async (req, res) => {
             console.log('Base64 length:', base64Data.length);
             
             try {
-                imageUrl = await uploadToTelegraph(base64Data);
-                console.log('telegraph URL:', imageUrl);
-            } catch (eTg) {
-                console.error('telegraph error:', eTg.message);
-                try {
-                    imageUrl = await uploadToCatbox(base64Data);
-                    console.log('catbox URL:', imageUrl);
-                } catch (eCat) {
-                    console.error('catbox error:', eCat.message);
-                    return res.status(500).json({ error: 'Failed to upload image' });
-                }
+                imageUrl = await uploadImage(base64Data);
+                console.log('Image URL:', imageUrl);
+            } catch (eUpload) {
+                console.error('Upload error:', eUpload.message);
+                return res.status(500).json({ error: 'Failed to upload image: ' + eUpload.message });
             }
         }
         
