@@ -7,26 +7,23 @@ const path = require('path');
 // Функція завантаження base64 на uguu.se
 async function uploadToUguu(base64Data) {
     const buffer = Buffer.from(base64Data, 'base64');
-    const tmpPath = '/tmp/upload_' + Date.now() + '.jpg';
-    fs.writeFileSync(tmpPath, buffer);
     
-    try {
-        const form = new FormData();
-        form.append('files[]', fs.createReadStream(tmpPath), 'image.jpg');
-        
-        const response = await fetch('https://uguu.se/upload', {
-            method: 'POST',
-            body: form
-        });
-        
-        const data = await response.json();
-        if (data.success && data.files && data.files[0]) {
-            return data.files[0].url;
-        }
-        throw new Error('Upload failed');
-    } finally {
-        try { fs.unlinkSync(tmpPath); } catch(e) {}
+    const form = new FormData();
+    form.append('files[]', buffer, { filename: 'image.jpg', contentType: 'image/jpeg' });
+    
+    const response = await fetch('https://uguu.se/upload', {
+        method: 'POST',
+        body: form,
+        headers: form.getHeaders()
+    });
+    
+    const data = await response.json();
+    console.log('uguu.se response:', JSON.stringify(data));
+    
+    if (data.success && data.files && data.files[0]) {
+        return data.files[0].url;
     }
+    throw new Error('Upload failed: ' + JSON.stringify(data));
 }
 
 // Функція завантаження base64 на 0x0.st
@@ -53,27 +50,25 @@ async function uploadTo0x0(base64Data) {
 
 // Функція завантаження base64 на catbox.moe
 async function uploadToCatbox(base64Data) {
-    // Конвертуємо base64 в Buffer
     const buffer = Buffer.from(base64Data, 'base64');
-    const tmpPath = '/tmp/upload_' + Date.now() + '.jpg';
-    fs.writeFileSync(tmpPath, buffer);
     
-    try {
-        const form = new FormData();
-        form.append('reqtype', 'fileupload');
-        form.append('fileToUpload', fs.createReadStream(tmpPath), 'image.jpg');
-        
-        const response = await fetch('https://catbox.moe/user/api.php', {
-            method: 'POST',
-            body: form
-        });
-        
-        const url = await response.text();
+    const form = new FormData();
+    form.append('reqtype', 'fileupload');
+    form.append('fileToUpload', buffer, { filename: 'image.jpg', contentType: 'image/jpeg' });
+    
+    const response = await fetch('https://catbox.moe/user/api.php', {
+        method: 'POST',
+        body: form,
+        headers: form.getHeaders()
+    });
+    
+    const url = await response.text();
+    console.log('catbox response:', url);
+    
+    if (url && url.startsWith('https://')) {
         return url.trim();
-    } finally {
-        // Видаляємо тимчасовий файл
-        try { fs.unlinkSync(tmpPath); } catch(e) {}
     }
+    throw new Error('Upload failed: ' + url);
 }
 
 // Функція завантаження base64 на tmpfiles.org
