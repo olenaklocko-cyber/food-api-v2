@@ -228,16 +228,28 @@ module.exports = async (req, res) => {
                 });
             }
             
-            // Додаємо окремі інгредієнти тільки якщо їхня назва відрізняється від product_name
+            // Додаємо окремі інгредієнти тільки якщо вони відрізняються від основної страви
             if (resp.detected_dishes && resp.detected_dishes.length > 0) {
                 const mainName = (resp.product_name || '').toLowerCase().trim();
+                const mainCalories = resp.calories || 0;
                 for (const dish of resp.detected_dishes) {
                     const dishNameLower = (dish.name || '').toLowerCase().trim();
-                    // Пропускаємо якщо назва збігається з основною стравою
-                    if (dishNameLower === mainName || mainName.includes(dishNameLower) || dishNameLower.includes(mainName)) {
+                    const dishCalories = dish.calories || 0;
+                    
+                    // Пропускаємо якщо:
+                    // 1. Назва збігається або міститься в основній
+                    // 2. Калорії інгредієнта близькі до загальних (>70%) — це та сама страва
+                    var nameMatch = dishNameLower === mainName || 
+                        mainName.includes(dishNameLower) || 
+                        dishNameLower.includes(mainName);
+                    var calMatch = mainCalories > 0 && dishCalories > 0 && 
+                        (dishCalories / mainCalories) > 0.7;
+                    
+                    if (nameMatch || calMatch) {
                         continue;
                     }
-                    const translatedDishName = await translateToUkrainian(dish.name);
+                    
+                    var translatedDishName = await translateToUkrainian(dish.name);
                     dishes.push({
                         name: translatedDishName,
                         calories: dish.calories || 0,
