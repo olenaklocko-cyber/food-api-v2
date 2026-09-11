@@ -171,6 +171,8 @@ module.exports = async (req, res) => {
                 base64Data = image.split(',')[1];
             }
             
+            console.log('Base64 length:', base64Data.length);
+            
             // Крок 1: Завантажуємо на uguu.se
             try {
                 imageUrl = await uploadToUguu(base64Data);
@@ -184,7 +186,7 @@ module.exports = async (req, res) => {
                     console.log('Uploaded to catbox:', imageUrl);
                 } catch (catboxError) {
                     console.error('catbox upload error:', catboxError.message);
-                    return res.status(500).json({ error: 'Failed to upload image to hosting' });
+                    return res.status(500).json({ error: 'Failed to upload image to hosting', debug: { uguu: eUguu.message, catbox: catboxError.message } });
                 }
             }
         }
@@ -209,6 +211,8 @@ module.exports = async (req, res) => {
         
         clearTimeout(timeout);
         const data = await response.json();
+        
+        console.log('CaloAI response:', JSON.stringify(data).substring(0, 500));
         
         if (data.status === 'success' && data.response) {
             const resp = data.response;
