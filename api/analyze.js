@@ -2,112 +2,9 @@
 const fetch = require('node-fetch');
 const FormData = require('form-data');
 const fs = require('fs');
-const path = require('path');
 
-// Функція завантаження base64 на uguu.se
-async function uploadToUguu(base64Data) {
-    const buffer = Buffer.from(base64Data, 'base64');
-    
-    const form = new FormData();
-    form.append('files[]', buffer, { filename: 'image.jpg', contentType: 'image/jpeg' });
-    
-    const response = await fetch('https://uguu.se/upload', {
-        method: 'POST',
-        body: form,
-        headers: form.getHeaders()
-    });
-    
-    const data = await response.json();
-    console.log('uguu.se response:', JSON.stringify(data));
-    
-    if (data.success && data.files && data.files[0]) {
-        return data.files[0].url;
-    }
-    throw new Error('Upload failed: ' + JSON.stringify(data));
-}
-
-// Функція завантаження base64 на 0x0.st
-async function uploadTo0x0(base64Data) {
-    const buffer = Buffer.from(base64Data, 'base64');
-    const tmpPath = '/tmp/upload_' + Date.now() + '.jpg';
-    fs.writeFileSync(tmpPath, buffer);
-    
-    try {
-        const form = new FormData();
-        form.append('file', fs.createReadStream(tmpPath));
-        
-        const response = await fetch('https://0x0.st', {
-            method: 'POST',
-            body: form
-        });
-        
-        const url = await response.text();
-        return url.trim();
-    } finally {
-        try { fs.unlinkSync(tmpPath); } catch(e) {}
-    }
-}
-
-// Функція завантаження base64 на catbox.moe
-async function uploadToCatbox(base64Data) {
-    const buffer = Buffer.from(base64Data, 'base64');
-    
-    const form = new FormData();
-    form.append('reqtype', 'fileupload');
-    form.append('fileToUpload', buffer, { filename: 'image.jpg', contentType: 'image/jpeg' });
-    
-    const response = await fetch('https://catbox.moe/user/api.php', {
-        method: 'POST',
-        body: form,
-        headers: form.getHeaders()
-    });
-    
-    const url = await response.text();
-    console.log('catbox response:', url);
-    
-    if (url && url.startsWith('https://')) {
-        return url.trim();
-    }
-    throw new Error('Upload failed: ' + url);
-}
-
-// Функція завантаження base64 на tmpfiles.org
-async function uploadToTmpfiles(base64Data) {
-    const buffer = Buffer.from(base64Data, 'base64');
-    const tmpPath = '/tmp/upload_' + Date.now() + '.jpg';
-    fs.writeFileSync(tmpPath, buffer);
-    
-    try {
-        const form = new FormData();
-        form.append('file', fs.createReadStream(tmpPath), {
-            filename: 'image.jpg',
-            contentType: 'image/jpeg'
-        });
-        
-        const response = await fetch('https://tmpfiles.org/api/v1/upload', {
-            method: 'POST',
-            body: form
-        });
-        
-        const data = await response.json();
-        console.log('tmpfiles response:', data);
-        
-        if (data.status === 'success' && data.data && data.data.url) {
-            // tmpfiles returns URL like https://tmpfiles.org/123/image.jpg
-            // Convert to direct URL: https://tmpfiles.org/direct/123/image.jpg
-            return data.data.url.replace('tmpfiles.org/', 'tmpfiles.org/direct/');
-        }
-        
-        throw new Error('Upload failed: ' + JSON.stringify(data));
-    } finally {
-        try { fs.unlinkSync(tmpPath); } catch(e) {}
-    }
-}
-
-// Функція перекладу з англійської на українську через MyMemory API
 async function translateToUkrainian(text) {
     if (!text) return 'Їжа';
-    
     try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 5000);
@@ -117,15 +14,58 @@ async function translateToUkrainian(text) {
         );
         clearTimeout(timeout);
         const data = await response.json();
-        
         if (data.responseStatus === 200 && data.responseData && data.responseData.translatedText) {
             return data.responseData.translatedText;
         }
     } catch (error) {
         console.error('Translation error:', error.message);
     }
-    
     return text;
+}
+
+async function uploadToTelegraph(base64Data) {
+    const buffer = Buffer.from(base64Data, 'base64');
+    const tmpPath = '/tmp/upload_' + Date.now() + '.jpg';
+    fs.writeFileSync(tmpPath, buffer);
+    try {
+        const form = new FormData();
+        form.append('file', fs.createReadStream(tmpPath), { filename: 'image.jpg', contentType: 'image/jpeg' });
+        const response = await fetch('https://telegra.ph/upload', {
+            method: 'POST',
+            body: form,
+            headers: form.getHeaders()
+        });
+        const data = await response.json();
+        console.log('telegraph:', JSON.stringify(data));
+        if (data && data[0] && data[0].src) {
+            return 'https://telegra.ph' + data[0].src;
+        }
+        throw new Error('telegraph failed');
+    } finally {
+        try { fs.unlinkSync(tmpPath); } catch(e) {}
+    }
+}
+
+async function uploadToCatbox(base64Data) {
+    const buffer = Buffer.from(base64Data, 'base64');
+    const tmpPath = '/tmp/upload_' + Date.now() + '.jpg';
+    fs.writeFileSync(tmpPath, buffer);
+    try {
+        const form = new FormData();
+        form.append('reqtype', 'fileupload');
+        form.append('fileToUpload', fs.createReadStream(tmpPath), { filename: 'image.jpg', contentType: 'image/jpeg' });
+        const response = await fetch('https://catbox.moe/user/api.php', {
+            method: 'POST',
+            body: form,
+            headers: form.getHeaders()
+        });
+        const url = await response.text();
+        console.log('catbox:', url);
+        if (url && url.startsWith('https://')) return url.trim();
+        throw new Error('catbox failed: ' + url);
+    } finally {
+        try { fs.unlinkSync(tmpPath); } catch(e) {}
+    }
 }
 
 module.exports = async (req, res) => {
@@ -133,90 +73,63 @@ module.exports = async (req, res) => {
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
-    
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method not allowed' });
-    }
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
     
     try {
         const { image } = req.body;
-        
-        if (!image) {
-            return res.status(400).json({ error: 'No image provided' });
-        }
+        if (!image) return res.status(400).json({ error: 'No image provided' });
         
         const rapidApiKey = process.env.RAPIDAPI_KEY || process.env.CALOAI_API_KEY || process.env.API_KEY || '16749e13b0msh437c9c685ba695bp10d553jsn871fbf3b2535';
         
-        if (!rapidApiKey) {
-            return res.status(500).json({ error: 'RAPIDAPI_KEY not configured' });
-        }
-        
-        // Якщо image вже URL - відправляємо напряму
         let imageUrl;
         if (image.startsWith('http://') || image.startsWith('https://')) {
             imageUrl = image;
-            console.log('Using direct URL:', imageUrl);
         } else {
-            // Base64 - завантажуємо на хостинг для отримання URL
             let base64Data = image;
-            if (image.startsWith('data:')) {
-                base64Data = image.split(',')[1];
-            }
+            if (image.startsWith('data:')) base64Data = image.split(',')[1];
             
             console.log('Base64 length:', base64Data.length);
             
-            // Крок 1: Завантажуємо на uguu.se
             try {
-                imageUrl = await uploadToUguu(base64Data);
-                console.log('Uploaded to uguu.se:', imageUrl);
-            } catch (eUguu) {
-                console.error('uguu.se upload error:', eUguu.message);
-                
-                // Спроба 2: catbox.moe
+                imageUrl = await uploadToTelegraph(base64Data);
+                console.log('telegraph URL:', imageUrl);
+            } catch (eTg) {
+                console.error('telegraph error:', eTg.message);
                 try {
                     imageUrl = await uploadToCatbox(base64Data);
-                    console.log('Uploaded to catbox:', imageUrl);
-                } catch (catboxError) {
-                    console.error('catbox upload error:', catboxError.message);
-                    return res.status(500).json({ error: 'Failed to upload image to hosting', debug: { uguu: eUguu.message, catbox: catboxError.message } });
+                    console.log('catbox URL:', imageUrl);
+                } catch (eCat) {
+                    console.error('catbox error:', eCat.message);
+                    return res.status(500).json({ error: 'Failed to upload image' });
                 }
             }
         }
         
-        // Крок 2: Відправляємо URL в CaloAI
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 30000);
         
-        const response = await fetch(
-            'https://caloai.p.rapidapi.com/v1',
-            {
-                method: 'POST',
-                headers: {
-                    'X-RapidAPI-Key': rapidApiKey,
-                    'X-RapidAPI-Host': 'caloai.p.rapidapi.com',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ image_url: imageUrl }),
-                signal: controller.signal
-            }
-        );
+        const response = await fetch('https://caloai.p.rapidapi.com/v1', {
+            method: 'POST',
+            headers: {
+                'X-RapidAPI-Key': rapidApiKey,
+                'X-RapidAPI-Host': 'caloai.p.rapidapi.com',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ image_url: imageUrl }),
+            signal: controller.signal
+        });
         
         clearTimeout(timeout);
         const data = await response.json();
-        
-        console.log('CaloAI response:', JSON.stringify(data).substring(0, 500));
+        console.log('CaloAI status:', data.status);
         
         if (data.status === 'success' && data.response) {
             const resp = data.response;
-            
             const dishes = [];
             
             if (resp.product_name) {
                 const translatedName = await translateToUkrainian(resp.product_name);
-                
                 dishes.push({
                     name: translatedName,
                     calories: resp.calories || 300,
@@ -227,27 +140,15 @@ module.exports = async (req, res) => {
                 });
             }
             
-            // Додаємо окремі інгредієнти тільки якщо вони відрізняються від основної страви
             if (resp.detected_dishes && resp.detected_dishes.length > 0) {
                 const mainName = (resp.product_name || '').toLowerCase().trim();
                 const mainCalories = resp.calories || 0;
                 for (const dish of resp.detected_dishes) {
                     const dishNameLower = (dish.name || '').toLowerCase().trim();
                     const dishCalories = dish.calories || 0;
-                    
-                    // Пропускаємо якщо:
-                    // 1. Назва збігається або міститься в основній
-                    // 2. Калорії інгредієнта близькі до загальних (>70%) — це та сама страва
-                    var nameMatch = dishNameLower === mainName || 
-                        mainName.includes(dishNameLower) || 
-                        dishNameLower.includes(mainName);
-                    var calMatch = mainCalories > 0 && dishCalories > 0 && 
-                        (dishCalories / mainCalories) > 0.7;
-                    
-                    if (nameMatch || calMatch) {
-                        continue;
-                    }
-                    
+                    var nameMatch = dishNameLower === mainName || mainName.includes(dishNameLower) || dishNameLower.includes(mainName);
+                    var calMatch = mainCalories > 0 && dishCalories > 0 && (dishCalories / mainCalories) > 0.7;
+                    if (nameMatch || calMatch) continue;
                     var translatedDishName = await translateToUkrainian(dish.name);
                     dishes.push({
                         name: translatedDishName,
@@ -271,10 +172,7 @@ module.exports = async (req, res) => {
             });
         }
         
-        return res.status(200).json({
-            success: false,
-            error: data.error || 'Не вдалося розпізнати'
-        });
+        return res.status(200).json({ success: false, error: data.error || 'Не вдалося розпізнати' });
         
     } catch (error) {
         console.error('Analyze error:', error.message);
